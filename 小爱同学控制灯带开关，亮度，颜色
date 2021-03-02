@@ -1,0 +1,133 @@
+#define BLINKER_PRINT Serial
+#define BLINKER_MIOT_LIGHT
+#define BLINKER_WIFI
+#include <Blinker.h>
+#include <Adafruit_NeoPixel.h>
+
+char auth[] = "2df375d5a369";
+char ssid[] = "public link";
+char pswd[] = "QAZ123098qaz";
+
+#define PIN 1  //  DIN PIN (GPIO15, D8)
+#define NUMPIXELS 60  // Number of you led
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+
+
+// 新建组件对象
+BlinkerRGB RGB1("RGB");
+BlinkerButton Button1("btn-abc");
+
+int LED_R,LED_G,LED_B,LED_Bright=100;// RGB和亮度
+bool LED_Flag = false;
+
+void SET_RGB(int R,int G,int B,int bright)
+{
+    for (uint16_t i = 0; i < NUMPIXELS; i++) //把灯条变色
+    {
+        pixels.setPixelColor(i,R,G,B);
+    }
+    pixels.setBrightness(bright);//亮度
+    pixels.show();    //送出显示
+}
+//APP RGB颜色设置
+void rgb1_callback(uint8_t r_value, uint8_t g_value, 
+                    uint8_t b_value, uint8_t bright_value)
+{
+    BLINKER_LOG("R value: ", r_value);
+    BLINKER_LOG("G value: ", g_value);
+    BLINKER_LOG("B value: ", b_value);
+    BLINKER_LOG("Rrightness value: ", bright_value);
+    LED_Bright = bright_value;
+    SET_RGB(r_value,g_value,b_value,LED_Bright);
+}
+
+void button1_callback(const String & state) 
+{
+    BLINKER_LOG("get button state: ", state);
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    Blinker.vibrate();
+}
+
+//小爱同学控制灯开关
+void miotPowerState(const String & state){  
+    BLINKER_LOG("need set power state: ", state);
+
+    if (state == BLINKER_CMD_ON) {
+        //digitalWrite(LED_BUILTIN, LOW);
+        int colorR=150,colorG=0,colorB=255;
+        LED_R = colorR;
+        LED_G = colorG;
+        LED_B = colorB;
+        SET_RGB(LED_R,LED_G,LED_B,LED_Bright=50);
+        SET_RGB(LED_R,LED_G,LED_B,LED_Bright=50);
+        BlinkerMIOT.powerState("on");
+        BlinkerMIOT.print();
+        //pixels.show(); 
+    }
+    else if (state == BLINKER_CMD_OFF) {
+        //digitalWrite(LED_BUILTIN, HIGH);
+        SET_RGB(0,0,0,0);
+        BlinkerMIOT.powerState("off");
+        BlinkerMIOT.print();
+    }
+}
+
+//小爱颜色控制接口
+void miotColor(int32_t color)
+{
+    int colorR,colorG,colorB;
+    BLINKER_LOG("need set color: ", color);
+
+    colorR = color >> 16 & 0xFF;
+    colorG = color >>  8 & 0xFF;
+    colorB = color       & 0xFF;
+
+    BLINKER_LOG("colorR: ", colorR, ", colorG: ", colorG, ", colorB: ", colorB);
+    LED_R = colorR;
+    LED_G = colorG;
+    LED_B = colorB;
+    SET_RGB(LED_R,LED_G,LED_B,LED_Bright);
+    //pixels.show(); 
+    BlinkerMIOT.color(color);
+    BlinkerMIOT.print();
+}
+
+//小爱控制亮度
+void miotBright(const String & bright)
+{
+    int colorW;
+    BLINKER_LOG("need set brightness: ", bright);
+
+    colorW = bright.toInt();
+
+    BLINKER_LOG("now set brightness: ", colorW);
+    LED_Bright = colorW;
+    SET_RGB(LED_R,LED_G,LED_B,LED_Bright);
+    BlinkerMIOT.brightness(colorW);
+    BlinkerMIOT.print();
+    
+}
+
+void setup() {
+    // 初始化串口
+    Serial.begin(115200);
+    pixels.begin();//WS2812初始化
+    BLINKER_DEBUG.stream(Serial);
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, HIGH);
+    //SET_RGB(LED_R,LED_G,LED_B,LED_Bright);
+    pixels.show(); 
+    #if defined(BLINKER_PRINT)
+        BLINKER_DEBUG.stream(BLINKER_PRINT);
+    #endif
+    Blinker.begin(auth, ssid, pswd);
+    RGB1.attach(rgb1_callback);//注册调节颜色的回调函数
+    Button1.attach(button1_callback);//注册内置LED的回调函数
+    BlinkerMIOT.attachPowerState(miotPowerState);
+    BlinkerMIOT.attachColor(miotColor);//小爱颜色控制接口回调函数
+    BlinkerMIOT.attachBrightness(miotBright);//小爱控制亮度回调函数
+}
+
+void loop() {
+    Blinker.run();
+}
